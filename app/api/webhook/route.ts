@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
 export const runtime = "nodejs";
@@ -7,6 +8,16 @@ export const dynamic = "force-dynamic";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+/**
+ * 服务端专用的 Supabase 客户端（Service Role Key，绕过 RLS）。
+ * 该 Key 属于服务端机密，请只在服务端代码中使用，
+ * 并确保在 Vercel 环境变量中配置了 SUPABASE_SERVICE_ROLE_KEY。
+ */
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * 检查 payments 表是否存在。
@@ -75,7 +86,8 @@ export async function POST(req: Request) {
     }
 
     // 4. 插入支付记录（邮箱、金额、时间）
-    const { data, error } = await supabase.from("payments").insert({
+    // 使用 supabaseAdmin（Service Role Key）绕过 RLS，确保服务端可写入
+    const { data, error } = await supabaseAdmin.from("payments").insert({
       email,
       amount,
       currency,
