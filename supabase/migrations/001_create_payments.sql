@@ -25,6 +25,14 @@ CREATE INDEX IF NOT EXISTS idx_payments_email ON public.payments (email);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_session_id ON public.payments (session_id);
 
 -- ============================================
+-- 表权限（缺失会导致 "permission denied for table payments"）
+-- service_role：webhook 使用 service_role key（绕过 RLS，但仍需表级权限）
+-- anon / authenticated：兼容旧 webhook(anon key) 设计；行级控制由下方 RLS 策略约束
+-- ============================================
+GRANT ALL ON TABLE public.payments TO service_role;
+GRANT ALL ON TABLE public.payments TO anon, authenticated;
+
+-- ============================================
 -- Row Level Security（行级安全）
 -- ============================================
 
@@ -38,9 +46,9 @@ CREATE POLICY "payments_select_own"
   FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
--- 允许服务端（/api/webhook 使用 anon key）插入支付记录
--- 说明：本项目 webhook 使用 anon key 插入，因此放开 INSERT 策略。
--- 生产环境更安全的做法：改用 service_role key 并移除此策略。
+-- 允许 Webhook 插入支付记录
+-- 说明：webhook 现已改用 service_role key（绕过 RLS），
+-- 此 INSERT 策略作为兼容保留；完全迁移后可移除此策略。
 DROP POLICY IF EXISTS "payments_insert_via_api" ON public.payments;
 CREATE POLICY "payments_insert_via_api"
   ON public.payments

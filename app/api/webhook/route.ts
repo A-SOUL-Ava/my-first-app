@@ -74,7 +74,8 @@ export async function POST(req: Request) {
     await ensurePaymentsTable();
 
     // 3. 幂等保护：同一 Session ID 只写入一条记录
-    const { data: existing } = await supabase
+    // 使用 supabaseAdmin（service_role）读取，避免依赖 anon 权限
+    const { data: existing } = await supabaseAdmin
       .from("payments")
       .select("id")
       .eq("session_id", sessionId)
