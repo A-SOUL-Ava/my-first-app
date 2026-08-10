@@ -32,6 +32,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_session_id ON public.payments (se
 GRANT ALL ON TABLE public.payments TO service_role;
 GRANT ALL ON TABLE public.payments TO anon, authenticated;
 
+-- BIGSERIAL 依赖序列 payments_id_seq，需单独授予 USAGE 权限
+-- 缺失会导致 "permission denied for sequence payments_id_seq"
+GRANT USAGE ON SEQUENCE public.payments_id_seq TO service_role;
+GRANT USAGE ON SEQUENCE public.payments_id_seq TO anon, authenticated;
+
 -- ============================================
 -- Row Level Security（行级安全）
 -- ============================================
