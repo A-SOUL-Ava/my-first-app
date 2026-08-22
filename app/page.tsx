@@ -1,113 +1,71 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-type GuestbookEntry = {
-  id: number;
+export const dynamic = "force-dynamic";
+
+type Product = {
+  id: string;
   name: string;
-  message: string;
+  description: string | null;
+  price: number;
+  prompt_content: string | null;
   created_at: string;
 };
 
-export default function Home() {
-  const [entries, setEntries] = useState<GuestbookEntry[]>([]);
-  const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+/** 将价格从分格式化为元，例如 990 -> "¥9.90" */
+function formatPrice(cents: number): string {
+  return `¥${(cents / 100).toFixed(2)}`;
+}
 
-  const fetchEntries = async () => {
-    const { data } = await supabase
-      .from("guestbook")
-      .select("*")
-      .order("created_at", { ascending: false });
+export default async function Home() {
+  // 服务端从 Supabase 读取所有商品，按创建时间倒序
+  const { data, error } = await supabase
+    .from("products")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-    if (data) setEntries(data);
-  };
+  if (error) {
+    console.error("❌ 获取商品列表失败:", error);
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !message.trim()) return;
-
-    setLoading(true);
-    const { error } = await supabase.from("guestbook").insert([
-      { name: name.trim(), message: message.trim() },
-    ]);
-
-    if (!error) {
-      setName("");
-      setMessage("");
-      await fetchEntries();
-    } else {
-      console.error("Supabase insert error:", JSON.stringify(error, null, 2));
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchEntries();
-  }, []);
+  const products: Product[] = (data as Product[] | null) ?? [];
 
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black min-h-screen">
-      <main className="flex flex-1 w-full max-w-3xl flex-col py-16 px-6">
+      <main className="flex flex-1 w-full max-w-5xl flex-col py-16 px-6">
         <h1 className="text-3xl font-bold text-black dark:text-zinc-50 mb-8">
-          留言板
+          商品列表
         </h1>
 
-        {/* 留言表单 */}
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-4 mb-10 p-6 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800"
-        >
-          <input
-            type="text"
-            placeholder="你的名字"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <textarea
-            placeholder="写下你的留言..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={3}
-            className="px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="self-end px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium transition-colors"
-          >
-            {loading ? "提交中..." : "提交留言"}
-          </button>
-        </form>
-
-        {/* 留言列表 */}
-        <div className="flex flex-col gap-4">
-          {entries.length === 0 ? (
-            <p className="text-zinc-500 text-center py-8">暂无留言，快来写第一条吧！</p>
-          ) : (
-            entries.map((entry) => (
+        {error ? (
+          <p className="text-red-500 dark:text-red-400 text-center py-16">
+            商品加载失败，请稍后重试。
+          </p>
+        ) : products.length === 0 ? (
+          <p className="text-zinc-500 dark:text-zinc-400 text-center py-16">
+            暂无商品，敬请期待。
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {products.map((product) => (
               <div
-                key={entry.id}
-                className="p-5 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800"
+                key={product.id}
+                className="p-6 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-black dark:text-zinc-50">
-                    {entry.name}
-                  </span>
-                  <span className="text-sm text-zinc-400">
-                    {new Date(entry.created_at).toLocaleDateString("zh-CN")}
-                  </span>
+                <h2 className="text-xl font-semibold text-black dark:text-zinc-50">
+                  {product.name}
+                </h2>
+                {product.description && (
+                  <p className="flex-1 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                    {product.description}
+                  </p>
+                )}
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {formatPrice(product.price)}
                 </div>
-                <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  {entry.message}
-                </p>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
