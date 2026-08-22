@@ -11,13 +11,16 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 /**
  * 服务端专用的 Supabase 客户端（Service Role Key，绕过 RLS）。
- * 该 Key 属于服务端机密，请只在服务端代码中使用，
- * 并确保在 Vercel 环境变量中配置了 SUPABASE_SERVICE_ROLE_KEY。
+ * 该 Key 属于服务端机密，请只在服务端代码中使用。
+ * 仅在配置了 SUPABASE_SERVICE_ROLE_KEY 时才创建客户端，
+ * 避免本地开发/构建时因缺少该变量而崩溃。
  */
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+  : null;
 
 /**
  * 检查 payments 表是否存在。
@@ -74,6 +77,16 @@ export async function POST(req: Request) {
     await ensurePaymentsTable();
 
     // 3. 幂等保护：同一 Session ID 只写入一条记录
+    if (!supabaseAdmin) {
+      console.error(
+        "❌ 服务端缺少 SUPABASE_SERVICE_ROLE_KEY 环境变量，无法写入 payments 表"
+      );
+      return NextResponse.json(
+        { error: "服务端配置错误：缺少 SUPABASE_SERVICE_ROLE_KEY" },
+        { status: 500 }
+      );
+    }
+
     // 使用 supabaseAdmin（service_role）读取，避免依赖 anon 权限
     const { data: existing } = await supabaseAdmin
       .from("payments")
